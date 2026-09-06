@@ -22,6 +22,7 @@ import org.thoughtcrime.securesms.notifications.SlowNotificationHeuristics
 import org.thoughtcrime.securesms.preferences.widgets.NotificationPrivacyPreference
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.RecipientForeverObserver
+import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.storage.StorageSyncHelper
 import org.thoughtcrime.securesms.util.TextSecurePreferences
 
@@ -128,6 +129,21 @@ class NotificationsSettingsViewModel(private val sharedPreferences: SharedPrefer
     refresh()
   }
 
+  fun setAutoAnswerEnabled(enabled: Boolean) {
+    SignalStore.settings.isAutoAnswerEnabled = enabled
+    refresh()
+  }
+
+  fun setAutoAnswerRecipientId(recipientId: RecipientId?) {
+    SignalStore.settings.autoAnswerRecipientId = recipientId?.serialize()
+    refresh()
+  }
+
+  fun setAutoAnswerLockedOnly(enabled: Boolean) {
+    SignalStore.settings.isAutoAnswerLockedOnly = enabled
+    refresh()
+  }
+
   fun setNotifyWhenContactJoinsSignal(enabled: Boolean) {
     SignalStore.settings.isNotifyWhenContactJoinsSignal = enabled
     markSelfNeedsSync()
@@ -211,7 +227,10 @@ class NotificationsSettingsViewModel(private val sharedPreferences: SharedPrefer
       notificationsEnabled = SignalStore.settings.isCallNotificationsEnabled && canEnableNotifications(),
       canEnableNotifications = canEnableNotifications(),
       ringtone = SignalStore.settings.callRingtone,
-      vibrateEnabled = SignalStore.settings.isCallVibrateEnabled
+      vibrateEnabled = SignalStore.settings.isCallVibrateEnabled,
+      autoAnswerEnabled = SignalStore.settings.isAutoAnswerEnabled,
+      autoAnswerRecipientId = SignalStore.settings.autoAnswerRecipientId?.let { runCatching { RecipientId.from(it) }.getOrNull() },
+      autoAnswerLockedOnly = SignalStore.settings.isAutoAnswerLockedOnly
     ),
     notifyWhenContactJoinsSignal = SignalStore.settings.isNotifyWhenContactJoinsSignal
   )

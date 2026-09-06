@@ -6250,6 +6250,12 @@
     <string name="NotificationsSettingsFragment__profiles">Профили</string>
     <!-- Notification preference summary text -->
     <string name="NotificationsSettingsFragment__create_a_profile_to_receive_notifications_only_from_people_and_groups_you_choose">Создайте профиль, чтобы получать уведомления только от людей и групп, выбранных вами.</string>
+    <!-- Fork: automatically answer incoming calls from a single selected contact -->
+    <string name="NotificationsSettingsFragment__auto_answer_calls">Автоответ на звонки</string>
+    <string name="NotificationsSettingsFragment__auto_answer_calls_body">Автоматически принимать входящие звонки от выбранного контакта</string>
+    <string name="NotificationsSettingsFragment__auto_answer_contact">Контакт для автоответа</string>
+    <string name="NotificationsSettingsFragment__auto_answer_contact_not_set">Не выбран</string>
+    <string name="NotificationsSettingsFragment__auto_answer_only_when_locked">Только когда телефон заблокирован</string>
 
     <!-- Header to describe screen that shows while muted settings -->
     <string name="MutedNotificationsFragment__while">Когда уведомления отключены</string>

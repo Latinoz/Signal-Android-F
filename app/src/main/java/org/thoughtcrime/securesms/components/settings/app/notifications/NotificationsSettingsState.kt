@@ -1,6 +1,7 @@
 package org.thoughtcrime.securesms.components.settings.app.notifications
 
 import android.net.Uri
+import org.thoughtcrime.securesms.recipients.RecipientId
 
 data class NotificationsSettingsState(
   val messageNotificationsState: MessageNotificationsState,
@@ -31,5 +32,8 @@ data class CallNotificationsState(
   val notificationsEnabled: Boolean,
   val canEnableNotifications: Boolean,
   val ringtone: Uri,
-  val vibrateEnabled: Boolean
+  val vibrateEnabled: Boolean,
+  val autoAnswerEnabled: Boolean,
+  val autoAnswerRecipientId: RecipientId?,
+  val autoAnswerLockedOnly: Boolean
 )

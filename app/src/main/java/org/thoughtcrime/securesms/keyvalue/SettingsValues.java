@@ -71,6 +71,9 @@ public final class SettingsValues extends SignalStoreValues {
   public static final  String CALL_NOTIFICATIONS_ENABLED              = "settings.call.notifications.enabled";
   public static final  String CALL_RINGTONE                           = "settings.call.ringtone";
   public static final  String CALL_VIBRATE_ENABLED                    = "settings.call.vibrate.enabled";
+  public static final  String CALL_AUTO_ANSWER_ENABLED                = "settings.call.autoanswer.enabled";
+  public static final  String CALL_AUTO_ANSWER_RECIPIENT_ID           = "settings.call.autoanswer.recipient.id";
+  public static final  String CALL_AUTO_ANSWER_LOCKED_ONLY            = "settings.call.autoanswer.locked.only";
   public static final  String NOTIFY_WHEN_CONTACT_JOINS_SIGNAL        = "settings.notify.when.contact.joins.signal";
   private static final String UNIVERSAL_EXPIRE_TIMER                  = "settings.universal.expire.timer";
   private static final String SENT_MEDIA_QUALITY                      = "settings.sentMediaQuality";
@@ -151,6 +154,9 @@ public final class SettingsValues extends SignalStoreValues {
                          CALL_NOTIFICATIONS_ENABLED,
                          CALL_RINGTONE,
                          CALL_VIBRATE_ENABLED,
+                         CALL_AUTO_ANSWER_ENABLED,
+                         CALL_AUTO_ANSWER_RECIPIENT_ID,
+                         CALL_AUTO_ANSWER_LOCKED_ONLY,
                          NOTIFY_WHEN_CONTACT_JOINS_SIGNAL,
                          UNIVERSAL_EXPIRE_TIMER,
                          SENT_MEDIA_QUALITY,
@@ -548,6 +554,31 @@ public final class SettingsValues extends SignalStoreValues {
 
   public void setCallVibrateEnabled(boolean callVibrateEnabled) {
     putBoolean(CALL_VIBRATE_ENABLED, callVibrateEnabled);
+  }
+
+  public boolean isAutoAnswerEnabled() {
+    return getBoolean(CALL_AUTO_ANSWER_ENABLED, false);
+  }
+
+  public void setAutoAnswerEnabled(boolean enabled) {
+    putBoolean(CALL_AUTO_ANSWER_ENABLED, enabled);
+  }
+
+  public @Nullable String getAutoAnswerRecipientId() {
+    String id = getString(CALL_AUTO_ANSWER_RECIPIENT_ID, null);
+    return id == null || id.isEmpty() ? null : id;
+  }
+
+  public void setAutoAnswerRecipientId(@Nullable String serializedRecipientId) {
+    putString(CALL_AUTO_ANSWER_RECIPIENT_ID, serializedRecipientId == null ? "" : serializedRecipientId);
+  }
+
+  public boolean isAutoAnswerLockedOnly() {
+    return getBoolean(CALL_AUTO_ANSWER_LOCKED_ONLY, false);
+  }
+
+  public void setAutoAnswerLockedOnly(boolean lockedOnly) {
+    putBoolean(CALL_AUTO_ANSWER_LOCKED_ONLY, lockedOnly);
   }
 
   public boolean isNotifyWhenContactJoinsSignal() {

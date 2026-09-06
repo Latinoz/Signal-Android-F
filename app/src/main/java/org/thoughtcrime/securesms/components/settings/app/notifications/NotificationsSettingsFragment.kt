@@ -1,6 +1,8 @@
 package org.thoughtcrime.securesms.components.settings.app.notifications
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.media.Ringtone
 import android.net.Uri
 import android.os.Build
@@ -10,6 +12,7 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -50,14 +54,21 @@ import org.signal.core.ui.compose.Rows
 import org.signal.core.ui.compose.Scaffolds
 import org.signal.core.ui.compose.SignalIcons
 import org.signal.core.ui.compose.Texts
+import org.signal.core.util.getParcelableArrayListExtraCompat
 import org.signal.core.util.logging.Log
+import org.thoughtcrime.securesms.PushContactSelectionActivity
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.PromptBatterySaverDialogFragment
 import org.thoughtcrime.securesms.components.settings.app.routes.AppSettingsRoute
 import org.thoughtcrime.securesms.components.settings.app.routes.AppSettingsRouter
 import org.thoughtcrime.securesms.components.settings.models.Banner
+import org.thoughtcrime.securesms.contacts.ContactSelectionDisplayMode
+import org.thoughtcrime.securesms.contacts.selection.ContactSelectionArguments
+import org.thoughtcrime.securesms.groups.SelectionLimits
 import org.thoughtcrime.securesms.notifications.NotificationChannels
 import org.thoughtcrime.securesms.notifications.TurnOnNotificationsBottomSheet
+import org.thoughtcrime.securesms.recipients.RecipientId
+import org.thoughtcrime.securesms.recipients.rememberRecipientField
 import org.thoughtcrime.securesms.util.RingtoneUtil
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
 import org.thoughtcrime.securesms.util.viewModel
@@ -163,6 +174,18 @@ open class DefaultNotificationsSettingsCallbacks(
     viewModel::setCallRingtone
   )
 
+  private val autoAnswerContactSelectionLauncher: ActivityResultLauncher<Intent> = activityResultRegisterer.registerForActivityResult(
+    ActivityResultContracts.StartActivityForResult()
+  ) { result ->
+    if (result.resultCode == Activity.RESULT_OK) {
+      val selected: List<RecipientId> = result.data
+        ?.getParcelableArrayListExtraCompat(PushContactSelectionActivity.KEY_SELECTED_RECIPIENTS, RecipientId::class.java)
+        .orEmpty()
+
+      viewModel.setAutoAnswerRecipientId(selected.firstOrNull())
+    }
+  }
+
   private val notificationPrioritySelectionLauncher: ActivityResultLauncher<Unit> = activityResultRegisterer.registerForActivityResult(
     contract = NotificationPrioritySelectionContract(),
     callback = {}
@@ -264,6 +287,33 @@ open class DefaultNotificationsSettingsCallbacks(
     viewModel.setCallVibrateEnabled(enabled)
   }
 
+  override fun setAutoAnswerEnabled(enabled: Boolean) {
+    viewModel.setAutoAnswerEnabled(enabled)
+  }
+
+  override fun setAutoAnswerContact(recipientId: RecipientId?) {
+    viewModel.setAutoAnswerRecipientId(recipientId)
+  }
+
+  override fun setAutoAnswerLockedOnly(enabled: Boolean) {
+    viewModel.setAutoAnswerLockedOnly(enabled)
+  }
+
+  override fun launchAutoAnswerContactSelection(currentSelection: Set<RecipientId>) {
+    try {
+      autoAnswerContactSelectionLauncher.launch(
+        Intent(activity, PushContactSelectionActivity::class.java).apply {
+          putExtra(ContactSelectionArguments.DISPLAY_MODE, ContactSelectionDisplayMode.FLAG_PUSH)
+          putExtra(ContactSelectionArguments.CAN_SELECT_SELF, false)
+          putExtra(ContactSelectionArguments.SELECTION_LIMITS, SelectionLimits(1, 1))
+          putParcelableArrayListExtra(ContactSelectionArguments.CURRENT_SELECTION, ArrayList(currentSelection))
+        }
+      )
+    } catch (e: ActivityNotFoundException) {
+      Toast.makeText(activity, R.string.NotificationSettingsFragment__failed_to_open_picker, Toast.LENGTH_LONG).show()
+    }
+  }
+
   override fun onNavigationProfilesClick() {
     appSettingsRouter.navigateTo(AppSettingsRoute.NotificationsRoute.NotificationProfiles)
   }
@@ -308,6 +358,10 @@ interface NotificationsSettingsCallbacks {
   fun setMessageNotificationPriority(selection: String) = Unit
   fun setCallNotificationsEnabled(enabled: Boolean) = Unit
   fun setCallVibrateEnabled(enabled: Boolean) = Unit
+  fun setAutoAnswerEnabled(enabled: Boolean) = Unit
+  fun setAutoAnswerContact(recipientId: RecipientId?) = Unit
+  fun setAutoAnswerLockedOnly(enabled: Boolean) = Unit
+  fun launchAutoAnswerContactSelection(currentSelection: Set<RecipientId>) = Unit
   fun onNavigationProfilesClick() = Unit
   fun setNotifyWhenContactJoinsSignal(enabled: Boolean) = Unit
   fun onMutedClicked() = Unit
@@ -586,6 +640,49 @@ fun NotificationsSettingsScreen(
       }
 
       item {
+        Rows.ToggleRow(
+          text = stringResource(R.string.NotificationsSettingsFragment__auto_answer_calls),
+          label = stringResource(R.string.NotificationsSettingsFragment__auto_answer_calls_body),
+          checked = state.callNotificationsState.autoAnswerEnabled,
+          onCheckChanged = callbacks::setAutoAnswerEnabled
+        )
+      }
+
+      if (state.callNotificationsState.autoAnswerEnabled) {
+        item {
+          val recipientId = state.callNotificationsState.autoAnswerRecipientId
+          val contactName = autoAnswerContactName(recipientId)
+
+          Rows.TextRow(
+            text = stringResource(R.string.NotificationsSettingsFragment__auto_answer_contact),
+            label = when {
+              contactName.isNotBlank() -> contactName
+              recipientId != null -> null
+              else -> stringResource(R.string.NotificationsSettingsFragment__auto_answer_contact_not_set)
+            },
+            onClick = {
+              callbacks.launchAutoAnswerContactSelection(
+                currentSelection = if (recipientId != null) setOf(recipientId) else emptySet()
+              )
+            }
+          )
+        }
+
+        item {
+          Rows.ToggleRow(
+            text = stringResource(R.string.NotificationsSettingsFragment__auto_answer_only_when_locked),
+            checked = state.callNotificationsState.autoAnswerLockedOnly,
+            enabled = state.callNotificationsState.autoAnswerRecipientId != null,
+            onCheckChanged = callbacks::setAutoAnswerLockedOnly
+          )
+        }
+      }
+
+      item {
+        Dividers.Default()
+      }
+
+      item {
         Rows.TextRow(
           text = stringResource(R.string.NotificationsSettingsFragment__notification_profiles),
           label = stringResource(R.string.NotificationsSettingsFragment__create_a_profile_to_receive_notifications_only_from_people_and_groups_you_choose),
@@ -639,6 +736,20 @@ private fun getLedColor(ledColorString: String): Color {
     "white" -> colorResource(R.color.white)
     else -> colorResource(R.color.transparent)
   }
+}
+
+@Composable
+private fun autoAnswerContactName(recipientId: RecipientId?): String {
+  if (recipientId == null) {
+    return ""
+  }
+
+  val context = LocalContext.current
+  val name by rememberRecipientField(recipientId) {
+    if (isUnknown) "" else getDisplayName(context)
+  }
+
+  return name
 }
 
 @DayNightPreviews
@@ -701,7 +812,10 @@ private fun rememberTestState(): NotificationsSettingsState = remember {
       notificationsEnabled = true,
       canEnableNotifications = true,
       ringtone = Uri.EMPTY,
-      vibrateEnabled = true
+      vibrateEnabled = true,
+      autoAnswerEnabled = true,
+      autoAnswerRecipientId = null,
+      autoAnswerLockedOnly = false
     ),
     notifyWhenContactJoinsSignal = true
   )

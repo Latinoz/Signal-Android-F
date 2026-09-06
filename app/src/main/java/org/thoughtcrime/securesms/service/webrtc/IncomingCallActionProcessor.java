@@ -1,5 +1,7 @@
 package org.thoughtcrime.securesms.service.webrtc;
 
+import android.app.KeyguardManager;
+import android.content.Context;
 import android.net.Uri;
 import android.os.ResultReceiver;
 import android.text.TextUtils;
@@ -275,8 +277,11 @@ public class IncomingCallActionProcessor extends DeviceAwareActionProcessor {
     RemotePeer activePeer                = currentState.getCallInfoState().requireActivePeer();
     Recipient  recipient                 = remotePeer.getRecipient();
     boolean    shouldDisturbUserWithCall = DoNotDisturbUtil.shouldDisturbUserWithCall(context.getApplicationContext(), recipient);
+    boolean    shouldAutoAnswer          = shouldAutoAnswer(remotePeer);
 
-    Log.i(TAG, "handleLocalRinging(): call_id: " + remotePeer.getCallId() + " shouldDisturbUser: " + shouldDisturbUserWithCall);
+    Log.i(TAG, "handleLocalRinging(): call_id: " + remotePeer.getCallId()
+              + " shouldDisturbUser: " + shouldDisturbUserWithCall
+              + " shouldAutoAnswer: " + shouldAutoAnswer);
 
     activePeer.localRinging();
 
@@ -288,7 +293,7 @@ public class IncomingCallActionProcessor extends DeviceAwareActionProcessor {
                                               CallTable.Event.ONGOING,
                                               false);
 
-    if (!shouldDisturbUserWithCall) {
+    if (!shouldDisturbUserWithCall && !shouldAutoAnswer) {
       Log.i(TAG, "Silently ignoring call due to mute settings.");
       return currentState.builder()
                          .changeCallInfoState()
@@ -304,7 +309,7 @@ public class IncomingCallActionProcessor extends DeviceAwareActionProcessor {
     }
 
     boolean isCallNotificationsEnabled = SignalStore.settings().isCallNotificationsEnabled() && NotificationChannels.getInstance().areNotificationsEnabled();
-    if (isCallNotificationsEnabled) {
+    if (!shouldAutoAnswer && isCallNotificationsEnabled) {
       Uri                         ringtone     = recipient.resolve().getCallRingtone();
       RecipientTable.VibrateState vibrateState = recipient.resolve().getCallVibrate();
 
@@ -325,10 +330,51 @@ public class IncomingCallActionProcessor extends DeviceAwareActionProcessor {
     webRtcInteractor.setCallInProgressNotification(TYPE_INCOMING_RINGING, activePeer, isRemoteVideoOffer);
     webRtcInteractor.registerPowerButtonReceiver();
 
+    if (shouldAutoAnswer) {
+      Log.i(TAG, "Auto-answering call from configured contact, call_id: " + remotePeer.getCallId());
+      return handleAcceptCall(currentState.builder()
+                                          .changeCallInfoState()
+                                          .callState(WebRtcViewModel.State.CALL_INCOMING)
+                                          .build(),
+                              false);
+    }
+
     return currentState.builder()
                        .changeCallInfoState()
                        .callState(WebRtcViewModel.State.CALL_INCOMING)
                        .build();
+  }
+
+  private boolean shouldAutoAnswer(@NonNull RemotePeer remotePeer) {
+    if (!SignalStore.settings().isAutoAnswerEnabled()) {
+      return false;
+    }
+
+    String serializedRecipientId = SignalStore.settings().getAutoAnswerRecipientId();
+    if (TextUtils.isEmpty(serializedRecipientId)) {
+      return false;
+    }
+
+    RecipientId configuredRecipientId;
+    try {
+      configuredRecipientId = RecipientId.from(serializedRecipientId);
+    } catch (AssertionError e) {
+      Log.w(TAG, "Configured auto answer recipient id is invalid: " + serializedRecipientId);
+      return false;
+    }
+
+    if (!configuredRecipientId.equals(remotePeer.getId())) {
+      return false;
+    }
+
+    if (SignalStore.settings().isAutoAnswerLockedOnly()) {
+      KeyguardManager keyguardManager = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
+      if (keyguardManager == null || !keyguardManager.isKeyguardLocked()) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   protected @NonNull WebRtcServiceState handleScreenOffChange(@NonNull WebRtcServiceState currentState) {
